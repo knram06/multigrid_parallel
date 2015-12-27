@@ -20,6 +20,7 @@ int main(int argc, char** argv)
     int multFactor = 1 << (numLevels-1);
     const int finestOneSideNum = ((N-1) * multFactor)+1;
 
+    //TimingInfo **tInfo = NULL;
     // allocate the timing object
     allocTimingInfo(&tInfo, numLevels);
 
@@ -46,11 +47,11 @@ int main(int argc, char** argv)
     // RELATIVE CONVERGENCE criteria
     const double initResidual = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h, NULL);
 
-    const double cmpNorm = initResidual*tolerance*tolerance;
+    const double cmpNorm = initResidual*tolerance;
     int iterCount = 1;
     while(norm >= cmpNorm)
     {
-        norm = vcycle(u, d, numLevels-1, gsIterNum, finestOneSideNum, A);
+        norm = vcycle(u, d, numLevels-1, numLevels-1, gsIterNum, finestOneSideNum, A);
         //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
         printf("%5d    Residual Norm:%20g\n", iterCount, norm);
         iterCount++;
@@ -58,9 +59,9 @@ int main(int argc, char** argv)
 
     // smoothen border edge and point values
     // although they are not used in the calculation
-    updateEdgeValues(u[numLevels-1], finestOneSideNum);
+    //updateEdgeValues(u[numLevels-1], finestOneSideNum);
 
-    printTimingInfo(tInfo, NUM_STAGES, numLevels);
+    printTimingInfo(tInfo, numLevels);
 
     //writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
 

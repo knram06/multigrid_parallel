@@ -1,5 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdbool.h>
+#include <limits.h>
 #include <string.h>
+
+#define GRID_LENGTH (1.)
 
 #include "gauss_elim.h"
 //#include "postprocess.h"
@@ -36,11 +42,25 @@ void allocGridLevels(double ***u, const int numLevels, const int N)
     } // end of loop which sets up levels
 }
 
+double BCFunc(double x, double y, double z)
+{return x*x -2*y*y + z*z;}
+//{ return (-cos(x) + x*(cos(1)-1) + 1); }
+//{ return 0.5*(x*x - x); }
+//{ return x;}
+//{ return x*x/2;}
+
+//double rhsFunc(double x, double y, double z)
+//{ return 0.;}
+//{ return cos(x);}
+//{ return 1.;}
+//{ return 1.;}
+
 // taken from
 // http://stackoverflow.com/questions/600293/how-to-check-if-a-number-is-a-power-of-2
 bool isPowerOfTwo(int x)
 { return (x & (x-1)) == 0;}
 
+/*
 void SolverInitialize(int argc, char **argv)
 {
     if(argc != 4)
@@ -73,6 +93,7 @@ void SolverInitialize(int argc, char **argv)
     // fill in the details at the finest level
     spacing = GRID_LENGTH/(finestOneSideNum-1);
 }
+*/
 
 // assume A has been preallocated
 void constructCoarseMatrixA(double *A, int N)
@@ -114,8 +135,9 @@ void constructCoarseMatrixA(double *A, int N)
                 {
                     // default diagonal value
                     // adjust for scaling A matrix by hSq
-                    //A[mat1DIndex] = 1.;
+                    A[mat1DIndex] = 1.;
 
+                    /*
                     // need to adjust for corner nodes/edges
                     int selfCount = 0;
 
@@ -181,6 +203,7 @@ void constructCoarseMatrixA(double *A, int N)
                     else
                         A[mat1DIndex] = selfCount;
 
+                    */
                 } // end of if on boundary points
 
                 // if on interior points
@@ -202,6 +225,7 @@ void constructCoarseMatrixA(double *A, int N)
     } // end of i loop
 }
 
+/*
 int SolverGetDetails(double **grid, double *h)
 {
     // set the user pointer to finest level
@@ -216,6 +240,7 @@ int SolverGetDetails(double **grid, double *h)
     *h = spacing;
     return finestOneSideNum;
 }
+*/
 
 void deAllocGridLevels(double ***u, const int numLevels)
 {
@@ -387,6 +412,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                           - hSq*d[p]              // hSq*f
                             );
 
+                    /*
                     // enforce Neumann bc (order?)
                     // if on the inner node adjacent to boundary
                     // copy to boundary node - this way we ensure
@@ -438,6 +464,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                     else if(k == N-2)
                         v[p+1] = v[p];
 
+                    */
                 } // end of k loop
             } // end of j loop
         } // end of i loop
@@ -445,7 +472,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
-    updateEdgeValues(v, N);
+    //updateEdgeValues(v, N);
 
 } // end of GaussSeidelSmoother
 
@@ -796,7 +823,7 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
     }
 
     j = levelN-1;
@@ -805,7 +832,7 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
     }
     /***********************************/
     /***********************************/
@@ -817,7 +844,7 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
         }
 
     }
@@ -829,7 +856,7 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
         }
     }
     /***********************************/
@@ -845,8 +872,8 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
         {
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
-            if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-                v[nni + nj + k] = CAPILLARY_VOLTAGE;
+            //if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
         }
     }
 
@@ -861,12 +888,12 @@ void setupBoundaryConditions(double **u, int levelN, double spacing, int numLeve
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
 
-            if((rr > (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-                    &&
-               (rr < (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-            {
-                v[nni + nj + k] = EXTRACTOR_VOLTAGE;
-            }
+            //if((rr > (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+            //        &&
+            //   (rr < (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            //{
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            //}
         }
     }
     /***********************************/
@@ -955,6 +982,7 @@ double vcycle(double **u, double **f, int q, const int numLevels, const int smoo
     return res;
 }
 
+/*
 void SolverFMGInitialize()
 {
     // solve on the coarsest grid
@@ -994,6 +1022,7 @@ void SolverFMGInitialize()
         vcycle(u, d, l, numLevels, gsIterNum, N, A);
     }
 }
+*/
 
 
 /*
@@ -1001,19 +1030,7 @@ void SolverFMGInitialize()
  * And areas for parallelism
  */
 
-//double func(double x, double y, double z)
-//{return x*x -2*y*y + z*z;}
-//{ return (-cos(x) + x*(cos(1)-1) + 1); }
-//{ return 0.5*(x*x - x); }
-//{ return x;}
-//{ return x*x/2;}
-
-//double rhsFunc(double x, double y, double z)
-//{ return 0.;}
-//{ return cos(x);}
-//{ return 1.;}
-//{ return 1.;}
-
+/*
 void SolverSetupBoundaryConditions()
 { return setupBoundaryConditions(u, finestOneSideNum, spacing, numLevels-1); }
 
@@ -1036,6 +1053,7 @@ void SolverResetTimingInfo()
 
 void SolverPrintTimingInfo()
 { printTimingInfo(tInfo, numLevels); }
+*/
 
 /*
 int main(int argc, char** argv)

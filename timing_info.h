@@ -4,6 +4,10 @@
 #define NUM_STAGES 7
 #define NUM_ATTRIBS 2
 
+#include <stdlib.h>
+#include <time.h>
+#include <assert.h>
+
 typedef struct __time_t
 {
     int numCalls;
