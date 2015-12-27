@@ -376,6 +376,74 @@ void updateEdgeValues(double* __restrict__ u, const int N)
     u[pos] = (1./3) * (u[pos+1] + u[pos-N] + u[pos-NN]);
 }
 
+void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
+                     const int N, const int NN, const double hSq,
+                     const double multFact, const int p,
+                     const int i, const int j, const int k,
+                     const double center[2])
+{
+    v[p] = multFact*(
+              v[p - NN] + v[p + NN] // u[i-1] + u[i+1]
+            + v[p - N]  + v[p + N]  // u[j-1] + u[j+1]
+            + v[p - 1]  + v[p + 1]  // u[k-1] + u[k+1]
+            - hSq*d[p]              // hSq*f
+            );
+
+    /*
+    // enforce Neumann bc (order?)
+    // if on the inner node adjacent to boundary
+    // copy to boundary node - this way we ensure
+    // RESIDUAL IS ZERO on boundary node
+    if(i == 1 || i == N-2)
+    {
+    double ty = j*h - center[0];
+    double tz = k*h - center[1];
+    double rr = ty*ty + tz*tz;
+
+    if(i == 1)
+    {
+    // outside capillary radius
+    if (rr > CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+    {
+    // copy (i,j,k) to (i-1,j,k)
+    v[p-NN] = v[p];
+    }
+    } // end of if i==1
+    // if i==N-2
+    else
+    {
+    // outside annular ring
+    if((rr <= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+    ||
+    (rr >= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+    {
+    // copy (i,j,k) to (i+1,j,k)
+    v[p+NN] = v[p];
+    }
+    } // end of else, i.e. i == N-2
+    } // end of if on X faces
+
+    // if on Y-Faces
+    if(j == 1)
+    {
+    // copy (i,j,k) to (i,j-1,k)
+    v[p-N] = v[p];
+    }
+    else if(j == N-2)
+    {
+    // (i,j,k) to (i,j+1,k)
+    v[p+N] = v[p];
+    }
+
+    // if on Z-Faces
+    if(k == 1)
+    v[p-1] = v[p];
+    else if(k == N-2)
+    v[p+1] = v[p];
+
+*/
+}
+
 // smoother function
 void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
 {
@@ -391,76 +459,24 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     // do pre-smoother first
     for(s = 0; s < smootherIter; s++)
     {
+        // red loop
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
+            //int iOffset = (i+1) % 2;
             for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
+                //int jOffset = (j+1) % 2;
+
                 int pos = nni + nj;
+
+                // adjust k offset accordingly
                 for(k = 1; k < N-1; k++)
                 {
                     int p = pos+k; // effectively nni+nj+k
-                    v[p] = invMultFact*(
-                            v[p - NN] + v[p + NN] // u[i-1] + u[i+1]
-                          + v[p - N]  + v[p + N]  // u[j-1] + u[j+1]
-                          + v[p - 1]  + v[p + 1]  // u[k-1] + u[k+1]
-                          - hSq*d[p]              // hSq*f
-                            );
-
-                    /*
-                    // enforce Neumann bc (order?)
-                    // if on the inner node adjacent to boundary
-                    // copy to boundary node - this way we ensure
-                    // RESIDUAL IS ZERO on boundary node
-                    if(i == 1 || i == N-2)
-                    {
-                        double ty = j*h - center[0];
-                        double tz = k*h - center[1];
-                        double rr = ty*ty + tz*tz;
-
-                        if(i == 1)
-                        {
-                            // outside capillary radius
-                            if (rr > CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-                            {
-                                // copy (i,j,k) to (i-1,j,k)
-                                v[p-NN] = v[p];
-                            }
-                        } // end of if i==1
-                        // if i==N-2
-                        else
-                        {
-                            // outside annular ring
-                            if((rr <= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-                                    ||
-                               (rr >= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-                            {
-                                // copy (i,j,k) to (i+1,j,k)
-                                v[p+NN] = v[p];
-                            }
-                        } // end of else, i.e. i == N-2
-                    } // end of if on X faces
-
-                    // if on Y-Faces
-                    if(j == 1)
-                    {
-                        // copy (i,j,k) to (i,j-1,k)
-                        v[p-N] = v[p];
-                    }
-                    else if(j == N-2)
-                    {
-                        // (i,j,k) to (i,j+1,k)
-                        v[p+N] = v[p];
-                    }
-
-                    // if on Z-Faces
-                    if(k == 1)
-                        v[p-1] = v[p];
-                    else if(k == N-2)
-                        v[p+1] = v[p];
-
-                    */
+                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                                    i, j, k, center);
                 } // end of k loop
             } // end of j loop
         } // end of i loop
