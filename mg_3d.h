@@ -459,20 +459,42 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     // do pre-smoother first
     for(s = 0; s < smootherIter; s++)
     {
-        // red loop
+        /*******RED LOOP**************************/
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
-            //int iOffset = (i+1) % 2;
+            int iOffset = (i+1) % 2;
             for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
-                //int jOffset = (j+1) % 2;
-
                 int pos = nni + nj;
 
+                int jOffset = (j+1) % 2;
+                int kOffset = (1 + (iOffset + jOffset)%2);
                 // adjust k offset accordingly
-                for(k = 1; k < N-1; k++)
+                for(k = kOffset; k < N-1; k+=2)
+                {
+                    int p = pos+k; // effectively nni+nj+k
+                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                                    i, j, k, center);
+                } // end of k loop
+            } // end of j loop
+        } // end of i loop
+
+        /*******BLACK LOOP************************/
+        for(i = 1; i < N-1; i++)
+        {
+            const int nni = NN*i;
+            int iOffset = (i+1) % 2;
+            for(j = 1; j < N-1; j++)
+            {
+                const int nj = N*j;
+                int pos = nni + nj;
+
+                int jOffset = (j % 2);
+                int kOffset = (1 + (iOffset + jOffset)%2);
+                // adjust k offset accordingly
+                for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
                     smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
