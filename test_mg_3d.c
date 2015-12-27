@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "mg_3d.h"
+#include "postprocess.h"
 
 int main(int argc, char** argv)
 {
@@ -63,7 +64,7 @@ int main(int argc, char** argv)
 
     printTimingInfo(tInfo, numLevels);
 
-    //writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
+    writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
 
     // checking against analytical soln
     //double errNorm = 0.;
