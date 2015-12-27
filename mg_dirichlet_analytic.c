@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 #include "gauss_elim.h"
-//#include "postprocess.h"
+#include "postprocess.h"
 #include "timing_info.h"
 
 #define GRID_LENGTH (3e-4)
@@ -1006,7 +1006,7 @@ int main(int argc, char** argv)
 
     printTimingInfo(tInfo, numLevels);
 
-    //writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
+    writeOutputData("output.vtk", u[numLevels-1], spacing, finestOneSideNum);
 
     // checking against analytical soln
     double errNorm = 0.;

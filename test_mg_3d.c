@@ -50,11 +50,15 @@ int main(int argc, char** argv)
 
     const double cmpNorm = initResidual*tolerance;
     int iterCount = 1;
+    double relResidualRatio = -1;
+    double oldNorm = -1;
     while(norm >= cmpNorm)
     {
-        norm = vcycle(u, d, numLevels-1, numLevels-1, gsIterNum, finestOneSideNum, A);
+        oldNorm = norm;
+        norm = vcycle(u, d, numLevels-1, numLevels, gsIterNum, finestOneSideNum, A);
+        relResidualRatio = norm/oldNorm;
         //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
-        printf("%5d    Residual Norm:%20g\n", iterCount, norm);
+        printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
         iterCount++;
     }
 

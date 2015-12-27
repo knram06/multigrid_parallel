@@ -665,13 +665,13 @@ void prolongateAndCorrectError(const double* __restrict__ ec, const int Nc, doub
     const int NCNC = Nc*Nc;
     const int NFNF = Nf*Nf;
 
-    for(i = 1; i < Nf-1; i++)
+    for(i = 0; i < Nf; i++)
     {
         const int nnif = i*NFNF;
-        for(j = 1; j < Nf-1; j++)
+        for(j = 0; j < Nf; j++)
         {
             const int njf = j*Nf;
-            for(k = 1; k < Nf-1; k++)
+            for(k = 0; k < Nf; k++)
             {
                 int isNotOnCoarseEdge[3] = {i%2, j%2, k%2};
                 const int val = isNotOnCoarseEdge[0] + isNotOnCoarseEdge[1] + isNotOnCoarseEdge[2];
