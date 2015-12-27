@@ -5,8 +5,6 @@
 #include <limits.h>
 #include <string.h>
 
-#define GRID_LENGTH (1.)
-
 #include "gauss_elim.h"
 //#include "postprocess.h"
 #include "timing_info.h"
@@ -96,7 +94,7 @@ void SolverInitialize(int argc, char **argv)
 */
 
 // assume A has been preallocated
-void constructCoarseMatrixA(double *A, int N)
+void constructCoarseMatrixA(double *A, int N, const double h)
 {
     int i, j, k;
     const int NN = N*N;
@@ -104,7 +102,6 @@ void constructCoarseMatrixA(double *A, int N)
 
     // CORRECT for the construction of A matrix by
     // dividing by h^2 (Thanks to Rajesh Gandham for pointing this out)
-    double h = GRID_LENGTH/(N-1);
     double hSq = h*h;
     double invHsq = 1./hSq;
 
@@ -234,7 +231,7 @@ int SolverGetDetails(double **grid, double *h)
     // preallocate and fill the coarse matrix A
     int matDim = coarseGridNum*coarseGridNum*coarseGridNum;
     A = calloc(matDim*matDim, sizeof(double));
-    constructCoarseMatrixA(A, coarseGridNum);
+    constructCoarseMatrixA(A, coarseGridNum, h);
     convertToLU_InPlace(A, matDim);
 
     *h = spacing;
@@ -392,7 +389,6 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     const int NN = N*N;
 
     // do pre-smoother first
-    // PERF: tile here?
     for(s = 0; s < smootherIter; s++)
     {
         for(i = 1; i < N-1; i++)
@@ -806,12 +802,11 @@ void prolongateAndCorrectError(const double* __restrict__ ec, const int Nc, doub
 }
 
 // TODO: Improve this to take in a user function pointer?
-void setupBoundaryConditions(double **u, int levelN, double spacing, int numLevel)
+void setupBoundaryConditions(double *v, int levelN, double spacing)
 {
     int i, j, k;
     int nni, nj;
 
-    double *v = u[numLevel];
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
 
     /***********************************/
@@ -914,7 +909,7 @@ double vcycle(double **u, double **f, int q, const int numLevels, const int smoo
     if(q < (numLevels-1))
         memset(v, 0, N*N*N*sizeof(double));
 
-    double timingTemp;
+    clock_t timingTemp;
     if(q == 0)
     {
         timingTemp = clock();
@@ -992,7 +987,7 @@ void SolverFMGInitialize()
 
     // impose BCs on the coarsest level
     double h = GRID_LENGTH/(coarseGridNum-1);
-    setupBoundaryConditions(u, N, h, 0);
+    setupBoundaryConditions(u[0], N, h);
 
     // A should now be storing its LU counterpart
     solveWithLU(A, totalNodes, d[0], u[0]);
@@ -1012,7 +1007,7 @@ void SolverFMGInitialize()
         prolongateAndCorrectError(u[l-1], Nc, u[l], N);
 
         // setupBoundaryConditions on this level
-        setupBoundaryConditions(u, N, h, l);
+        setupBoundaryConditions(u[l], N, h);
 
         // set previous level soln to zero so that it
         // is relevant for V-Cycles
@@ -1032,7 +1027,7 @@ void SolverFMGInitialize()
 
 /*
 void SolverSetupBoundaryConditions()
-{ return setupBoundaryConditions(u, finestOneSideNum, spacing, numLevels-1); }
+{ return setupBoundaryConditions(u[numLevels-1], finestOneSideNum, spacing); }
 
 double SolverLinSolve()
 {
