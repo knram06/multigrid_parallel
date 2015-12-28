@@ -56,7 +56,8 @@ int main(int argc, char** argv)
         timingTemp = omp_get_wtime();
         }
 
-        GaussSeidelSmoother(u, d, N, h, 1);
+        preSmoother(u, d, N, h, 1);
+        postSmoother(u, d, N, h, 1);
 
         #pragma omp single
         {

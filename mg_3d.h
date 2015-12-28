@@ -448,7 +448,7 @@ void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
 }
 
 // smoother function
-void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
+void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
 {
     int s;
     int i, j, k;
@@ -459,6 +459,8 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
+    // PERF: Improve cache locality (?) by doing relevant number of
+    // smoother iterations within one "color"
     for(s = 0; s < smootherIter; s++)
     {
         /*******RED LOOP**************************/
@@ -483,7 +485,12 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                 } // end of k loop
             } // end of j loop
         } // end of i loop
+    }
 
+    // PERF: Improve cache locality (?) by doing relevant number of
+    // smoother iterations within one "color"
+    for(s = 0; s < smootherIter; s++)
+    {
         /*******BLACK LOOP************************/
         #pragma omp for schedule(static)
         for(i = 1; i < N-1; i++)
@@ -495,6 +502,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                 const int nj = N*j;
                 int pos = nni + nj;
 
+                // IMPORTANT: jOffset differs from RED here
                 int jOffset = (j % 2);
                 int kOffset = (1 + (iOffset + jOffset)%2);
                 // adjust k offset accordingly
@@ -512,7 +520,82 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     // matrix construction
     //updateEdgeValues(v, N);
 
-} // end of GaussSeidelSmoother
+} // end of preSmoother
+
+// smoother function
+void postSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
+{
+    int s;
+    int i, j, k;
+    const double hSq = h*h;
+
+    const double invMultFact = 1./6;
+
+    double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
+    const int NN = N*N;
+
+    // PERF: Improve cache locality (?) by doing relevant number of
+    // smoother iterations within one "color"
+    for(s = 0; s < smootherIter; s++)
+    {
+        /*******BLACK LOOP************************/
+        #pragma omp for schedule(static)
+        for(i = N-2; i >= 1; i--)
+        {
+            const int nni = NN*i;
+            int iOffset = (i+1) % 2;
+            for(j = N-2; j >= 1; j--)
+            {
+                const int nj = N*j;
+                int pos = nni + nj;
+
+                // IMPORTANT: jOffset differs from RED here
+                int jOffset = (j % 2);
+                int kOffset = ((N-2) - (iOffset + jOffset)%2);
+                // adjust k offset accordingly
+                for(k = kOffset; k >= 1; k-=2)
+                {
+                    int p = pos+k; // effectively nni+nj+k
+                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                                    i, j, k, center);
+                } // end of k loop
+            } // end of j loop
+        } // end of i loop
+    } // end of smootherIter loop
+
+    // PERF: Improve cache locality (?) by doing relevant number of
+    // smoother iterations within one "color"
+    for(s = 0; s < smootherIter; s++)
+    {
+        /*******RED LOOP**************************/
+        #pragma omp for schedule(static)
+        for(i = N-2; i >= 1; i--)
+        {
+            const int nni = NN*i;
+            int iOffset = (i+1) % 2;
+            for(j = N-2; j >= 1; j--)
+            {
+                const int nj = N*j;
+                int pos = nni + nj;
+
+                int jOffset = (j+1) % 2;
+                int kOffset = ((N-2) - (iOffset + jOffset)%2);
+                // adjust k offset accordingly
+                for(k = kOffset; k >= 1; k-=2)
+                {
+                    int p = pos+k; // effectively nni+nj+k
+                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                                    i, j, k, center);
+                } // end of k loop
+            } // end of j loop
+        } // end of i loop
+    }
+
+    // smoothen on the edges to make it consistent with coarse
+    // matrix construction
+    //updateEdgeValues(v, N);
+
+} // end of preSmoother
 
 double calculateResidual(const double* __restrict__ v, const double* __restrict__ d, const int N, const double h, double *res)
 {
@@ -967,7 +1050,7 @@ double vcycle(double **u, double **f, int q, const int numLevels, const int smoo
     }
 
     timingTemp = clock();
-    GaussSeidelSmoother(v, d, N, h, smootherIter);
+    preSmoother(v, d, N, h, smootherIter);
     tInfo[q][0].timeTaken += (clock() - timingTemp);
     tInfo[q][0].numCalls++;
 
@@ -1007,7 +1090,7 @@ double vcycle(double **u, double **f, int q, const int numLevels, const int smoo
     tInfo[q][4].numCalls++;
 
     timingTemp = clock();
-    GaussSeidelSmoother(v, d, N, h, smootherIter);
+    postSmoother(v, d, N, h, smootherIter);
     tInfo[q][5].timeTaken += (clock() - timingTemp);
     tInfo[q][5].numCalls++;
 
