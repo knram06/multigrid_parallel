@@ -40,6 +40,14 @@ int main(int argc, char** argv)
     // RELATIVE CONVERGENCE criteria
     const double initResidual = calculateResidual(u, d, finestOneSideNum, h, NULL);
 
+    /*FALSE SHARING issue below
+     * let each thread write the residual in its portion to an array
+     * To facilitate global NORM calculation
+     * CAN'T use OMP REDUCTION here!!
+     */
+    int maxThreads = omp_get_max_threads();
+    double *threadNorm = calloc(maxThreads, sizeof(double));
+
     const double cmpNorm = initResidual*tolerance;
     int iterCount = 1;
     double relResidualRatio = -1;
@@ -48,6 +56,7 @@ int main(int argc, char** argv)
     #pragma omp parallel
     {
         //printf("Number of threads: %d\n", omp_get_num_threads());
+        int tid = omp_get_thread_num();
     while(norm >= cmpNorm)
     {
         #pragma omp single
@@ -63,8 +72,22 @@ int main(int argc, char** argv)
         {
         tInfo.timeTaken += (omp_get_wtime() - timingTemp);
         tInfo.numCalls++;
+        }
 
-        norm = calculateResidual(u, d, N, h, NULL);
+        // FALSE SHARING - possible here
+        threadNorm[tid] = calculateResidual(u, d, N, h, NULL);
+
+        #pragma omp single
+        {
+        int i;
+        norm = 0.;
+        for(i = 0; i < maxThreads; i++)
+            norm += threadNorm[i]*threadNorm[i];
+
+        // update with its sqrt
+        norm = sqrt(norm);
+
+        // calc residual reduction ratio
         relResidualRatio = norm/oldNorm;
         //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
         printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
@@ -98,6 +121,7 @@ int main(int argc, char** argv)
 
     free(d);
     free(u);
+    free(threadNorm);
     //deAllocTimingInfo(&tInfo, numLevels);
 
     return 0;

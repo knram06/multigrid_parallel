@@ -25,9 +25,10 @@ int main(int argc, char** argv)
     // allocate the timing object
     allocTimingInfo(&tInfo, numLevels);
 
-    double **u = NULL, **d = NULL;
+    double **u = NULL, **d = NULL, **r = NULL;
     allocGridLevels(&u, numLevels, N);
     allocGridLevels(&d, numLevels, N);
+    allocGridLevels(&r, numLevels, N);
 
     // preallocate and fill the coarse matrix A
     int matDim = N*N*N;

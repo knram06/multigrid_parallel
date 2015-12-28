@@ -603,8 +603,17 @@ double calculateResidual(const double* __restrict__ v, const double* __restrict_
     const double invHsq = 1./(h*h);
     const int NN = N*N;
 
+    // let each thread calculate its portion of the norm
+    // since we are partitioning across i loop
+    //int numThreads = omp_get_num_threads();
+    //double *threadNorm = malloc(numThreads * sizeof(double));
+
+    // let each thread store its id
+    int tid = omp_get_thread_num();
+
     // adjust for different boundary condition types?
     double ret = 0.;
+    #pragma omp for schedule(static)
     for(i = 1; i < N-1; i++)
     {
         const int nni = NN*i;
@@ -628,6 +637,16 @@ double calculateResidual(const double* __restrict__ v, const double* __restrict_
             }
         } // end of j loop
     } // end of i loop
+
+    // let each thread store its norm
+    // FALSE SHARING possibility here!!
+    //threadNorm[tid] = ret;
+
+    // let one thread calculate the final norm
+
+    // free malloc-ed memory
+    //free(threadNorm);
+
     return sqrt(ret);
 }
 
@@ -669,6 +688,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
     // X faces
     i = 0;
+    #pragma omp for schedule(static)
     for(j = 0; j < Nc; j++)
     {
         njc = j*Nc;
@@ -680,6 +700,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     i = Nc-1;
     nnic = NCNC*i;
     nnif = NFNF*2*i;
+    #pragma omp for schedule(static)
     for(j = 0; j < Nc; j++)
     {
         njc = j*Nc;
@@ -693,6 +714,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     j = 0;
     njc = j*Nc;
     njf = 2*j*Nf;
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -704,6 +726,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     j = Nc-1;
     njc = j*Nc;
     njf = 2*j*Nf;
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -715,6 +738,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
     // Z faces
     k = 0;
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -728,6 +752,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     }
 
     k = Nc-1;
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -742,6 +767,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
 
     // now do interpolation for inner nodes
+    #pragma omp for schedule(static)
     for(i = 1; i < Nc-1; i++)
     {
         nnic = NCNC*i;
@@ -786,6 +812,7 @@ void prolongateAndCorrectError(const double* __restrict__ ec, const int Nc, doub
     const int NCNC = Nc*Nc;
     const int NFNF = Nf*Nf;
 
+    #pragma omp for schedule(static)
     for(i = 0; i < Nf; i++)
     {
         const int nnif = i*NFNF;
@@ -1020,47 +1047,61 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
 } // end of setupBoundaryConditions
 
 // return current l2-norm squared of residual
-double vcycle(double **u, double **f, int q, const int numLevels, const int smootherIter, int N, double *LU)
+double vcycle(double **u, double **f, double **res, int q, const int numLevels, const int smootherIter, int N, double *LU)
 {
     double h = GRID_LENGTH/(N-1);
 
     double *v = u[q];
     double *d = f[q];
+    double *r = res[q];
+
+    double timingTemp;
 
     // Reset lower level soln to zero - improved the convergence
     // i.e. ensured constant number of iterations for desired relative reduction
     // in error
     // Thanks to Rajesh Gandham for pointing this out
-    if(q < (numLevels-1))
-        memset(v, 0, N*N*N*sizeof(double));
-
-    clock_t timingTemp;
-    if(q == 0)
+    #pragma omp single
     {
-        timingTemp = clock();
-        // prepare A matrix to send for gaussian elimination
+        if(q < (numLevels-1))
+        {
+            memset(v, 0, N*N*N*sizeof(double));
+        }
 
-        const int NN = N*N;
-        const int totalNodes = NN*N;
-        solveWithLU(LU, totalNodes, f[q], u[q]);
-        tInfo[q][3].timeTaken += (clock() - timingTemp);
-        tInfo[q][3].numCalls++;
+        if(q == 0)
+        {
+            const int NN = N*N;
+            const int totalNodes = NN*N;
 
-        return 0.;
+            timingTemp = omp_get_wtime();
+            solveWithLU(LU, totalNodes, f[q], u[q]);
+            tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
+            tInfo[q][3].numCalls++;
+
+            return 0.;
+        }
     }
 
-    timingTemp = clock();
+    #pragma omp single
+    timingTemp = omp_get_wtime();
     preSmoother(v, d, N, h, smootherIter);
-    tInfo[q][0].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    {
+    tInfo[q][0].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][0].numCalls++;
+    }
 
     // allocate the residual vector
-    double *r = calloc(N*N*N, sizeof(double));
+    //double *r = calloc(N*N*N, sizeof(double));
 
-    timingTemp = clock();
+    #pragma omp single
+    timingTemp = omp_get_wtime();
     calculateResidual(v, d, N, h, r);
-    tInfo[q][1].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    {
+    tInfo[q][1].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][1].numCalls++;
+    }
 
     // update N for next coarser level
     int N_coarse = (N+1)/2;
@@ -1068,36 +1109,55 @@ double vcycle(double **u, double **f, int q, const int numLevels, const int smoo
     // now restrict this onto the next level
     double *d1 = f[q-1];
 
-    timingTemp = clock();
+    #pragma omp single
+    timingTemp = omp_get_wtime();
     restrictResidual(r, N, d1, N_coarse);
-    tInfo[q][2].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    {
+    tInfo[q][2].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][2].numCalls++;
-    // free the residual memory used
-    free(r);
+    }
 
     // do recursive call now
-    timingTemp = clock();
-    vcycle(u, f, q-1, numLevels, smootherIter, N_coarse, LU);
-    tInfo[q][3].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    timingTemp = omp_get_wtime();
+    vcycle(u, f, res, q-1, numLevels, smootherIter, N_coarse, LU);
+    #pragma omp single
+    {
+    tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][3].numCalls++;
+    }
 
     // now do prolongation to the fine grid
     double *v1 = u[q-1];
-    // PARALLELIZABLE
-    timingTemp = clock();
+    #pragma omp single
+    timingTemp = omp_get_wtime();
     prolongateAndCorrectError(v1, N_coarse, v, N);
-    tInfo[q][4].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    {
+    tInfo[q][4].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][4].numCalls++;
+    }
 
-    timingTemp = clock();
+    #pragma omp single
+    timingTemp = omp_get_wtime();
     postSmoother(v, d, N, h, smootherIter);
-    tInfo[q][5].timeTaken += (clock() - timingTemp);
+    #pragma omp single
+    {
+    tInfo[q][5].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][5].numCalls++;
+    }
 
-    timingTemp = clock();
+    // TODO: Make this fully parallel too
+    // Currently haven't figured out how to effectively
+    // calculate l2-norm in parallel
+    #pragma omp single
+    {
+    timingTemp = omp_get_wtime();
     double res = calculateResidual(v, d, N, h, NULL);
-    tInfo[q][6].timeTaken += (clock() - timingTemp);
+    tInfo[q][6].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][6].numCalls++;
+    }
 
     return res;
 }
