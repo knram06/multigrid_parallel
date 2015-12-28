@@ -1,0 +1,14 @@
+# GS Smoother - 3D
+# 50 X 50 X 50 points
+# Each iteration does one pre-smoother
+# and one post smoother
+
+# In each run, final stats was:
+#  652    Residual Norm:            0.280135     ResidRatio:            0.983675
+
+NumThreads              TimeTaken
+1                       2.276591
+2                       1.175077
+4                       0.632426
+8                       0.353880
+
