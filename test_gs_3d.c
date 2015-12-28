@@ -18,7 +18,7 @@ int main(int argc, char** argv)
     int N = finestOneSideNum;
 
     // timing info
-    clock_t timingTemp;
+    double timingTemp;
     TimingInfo tInfo;
     tInfo.numCalls  = 0;
     tInfo.timeTaken = 0.;
@@ -45,23 +45,34 @@ int main(int argc, char** argv)
     double relResidualRatio = -1;
     double oldNorm = -1;
 
-    timingTemp = clock();
+    #pragma omp parallel
+    {
+        //printf("Number of threads: %d\n", omp_get_num_threads());
     while(norm >= cmpNorm)
     {
+        #pragma omp single
+        {
         oldNorm = norm;
+        timingTemp = omp_get_wtime();
+        }
 
         GaussSeidelSmoother(u, d, N, h, 1);
-        //tInfo.timeTaken += (clock() - timingTemp);
-        //tInfo.numCalls++;
+
+        #pragma omp single
+        {
+        tInfo.timeTaken += (omp_get_wtime() - timingTemp);
+        tInfo.numCalls++;
 
         norm = calculateResidual(u, d, N, h, NULL);
         relResidualRatio = norm/oldNorm;
         //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
         printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
         iterCount++;
+        }
     }
-    clock_t endTime = clock();
-    printf("Time taken: %lf\n", (endTime-timingTemp)*cycleTime);
+    } // end of PRAGMA OMP
+    //clock_t endTime = clock();
+    //printf("Time taken: %lf\n", (endTime-timingTemp)*cycleTime);
 
     // smoothen border edge and point values
     // although they are not used in the calculation
@@ -70,7 +81,7 @@ int main(int argc, char** argv)
     // get some info
     printf("Max OMP threads: %d\n", omp_get_max_threads());
     // print the timing info
-    //printf("Number of calls: %d\nTime taken:%lf\n", tInfo.numCalls, tInfo.timeTaken*cycleTime);
+    printf("Number of calls: %d\nTime taken:%lf\n", tInfo.numCalls, tInfo.timeTaken);
 
     writeOutputData("output.vtk", u, h, finestOneSideNum);
 
