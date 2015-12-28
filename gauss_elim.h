@@ -22,16 +22,13 @@ void convertToLU_InPlace(double *a, int n)
             const double z = a[nk + i]*aii_inv;
             a[nk + i] = z;
 
-            // update b
-            //b[k] -= z*b[i];
-
             for(j = i+1; j < n; j++)
                 a[nk + j] -= z*a[ni + j];
         }
     } // end of i loop
 }
 
-void solveWithLU(double *LU, const int n, double *b, double *x)
+void solveWithLU(const double* __restrict__ LU, const int n, const double* __restrict__ b, double* __restrict__ x)
 {
     int i, j;
 
