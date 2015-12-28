@@ -5,6 +5,9 @@
 #include <limits.h>
 #include <string.h>
 
+// OPENMP stuff
+#include <omp.h>
+
 #include "gauss_elim.h"
 //#include "postprocess.h"
 #include "timing_info.h"
@@ -456,10 +459,10 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
-    // do pre-smoother first
     for(s = 0; s < smootherIter; s++)
     {
         /*******RED LOOP**************************/
+        #pragma omp for schedule(static)
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
@@ -482,6 +485,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
         } // end of i loop
 
         /*******BLACK LOOP************************/
+        #pragma omp for schedule(static)
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;

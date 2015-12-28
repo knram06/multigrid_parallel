@@ -24,7 +24,6 @@ int main(int argc, char** argv)
     tInfo.timeTaken = 0.;
     const double cycleTime = 1./CLOCKS_PER_SEC;
 
-    int matDim = N*N*N;
     double *u = calloc(N*N*N, sizeof(double));
     double *d = calloc(N*N*N, sizeof(double));
 
@@ -45,14 +44,15 @@ int main(int argc, char** argv)
     int iterCount = 1;
     double relResidualRatio = -1;
     double oldNorm = -1;
+
+    timingTemp = clock();
     while(norm >= cmpNorm)
     {
         oldNorm = norm;
 
-        timingTemp = clock();
         GaussSeidelSmoother(u, d, N, h, 1);
-        tInfo.timeTaken += (clock() - timingTemp);
-        tInfo.numCalls++;
+        //tInfo.timeTaken += (clock() - timingTemp);
+        //tInfo.numCalls++;
 
         norm = calculateResidual(u, d, N, h, NULL);
         relResidualRatio = norm/oldNorm;
@@ -60,13 +60,17 @@ int main(int argc, char** argv)
         printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
         iterCount++;
     }
+    clock_t endTime = clock();
+    printf("Time taken: %lf\n", (endTime-timingTemp)*cycleTime);
 
     // smoothen border edge and point values
     // although they are not used in the calculation
     //updateEdgeValues(u[numLevels-1], finestOneSideNum);
 
+    // get some info
+    printf("Max OMP threads: %d\n", omp_get_max_threads());
     // print the timing info
-    printf("Number of calls: %d\nTime taken:%lf\n", tInfo.numCalls, tInfo.timeTaken*cycleTime);
+    //printf("Number of calls: %d\nTime taken:%lf\n", tInfo.numCalls, tInfo.timeTaken*cycleTime);
 
     writeOutputData("output.vtk", u, h, finestOneSideNum);
 
