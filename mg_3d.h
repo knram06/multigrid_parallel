@@ -608,9 +608,6 @@ double calculateResidual(const double* __restrict__ v, const double* __restrict_
     //int numThreads = omp_get_num_threads();
     //double *threadNorm = malloc(numThreads * sizeof(double));
 
-    // let each thread store its id
-    int tid = omp_get_thread_num();
-
     // adjust for different boundary condition types?
     double ret = 0.;
     #pragma omp for schedule(static)
@@ -1067,8 +1064,11 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
         {
             memset(v, 0, N*N*N*sizeof(double));
         }
+    }
 
-        if(q == 0)
+    if(q == 0)
+    {
+        #pragma omp single
         {
             const int NN = N*N;
             const int totalNodes = NN*N;
@@ -1077,9 +1077,10 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
             solveWithLU(LU, totalNodes, f[q], u[q]);
             tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
             tInfo[q][3].numCalls++;
-
-            return 0.;
         }
+
+        // THIS MUST be encountered by all threads
+        return 0.;
     }
 
     #pragma omp single
@@ -1152,14 +1153,16 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // Currently haven't figured out how to effectively
     // calculate l2-norm in parallel
     #pragma omp single
-    {
     timingTemp = omp_get_wtime();
-    double res = calculateResidual(v, d, N, h, NULL);
+
+    double rsd = calculateResidual(v, d, N, h, NULL);
+    #pragma omp single
+    {
     tInfo[q][6].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][6].numCalls++;
     }
 
-    return res;
+    return rsd;
 }
 
 /*

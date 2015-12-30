@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#define GRID_LENGTH (1.)
 #include "mg_3d.h"
 #include "postprocess.h"
 
@@ -30,19 +31,21 @@ int main(int argc, char** argv)
     allocGridLevels(&d, numLevels, N);
     allocGridLevels(&r, numLevels, N);
 
-    // preallocate and fill the coarse matrix A
-    int matDim = N*N*N;
-    double *A = calloc(matDim*matDim, sizeof(double));
-    constructCoarseMatrixA(A, N);
-    convertToLU_InPlace(A, matDim);
-
     // fill in the details at the finest level
     double h = GRID_LENGTH/(finestOneSideNum-1);
 
+    // preallocate and fill the coarse matrix A
+    int matDim = N*N*N;
+    double *A = calloc(matDim*matDim, sizeof(double));
+    constructCoarseMatrixA(A, N, h);
+    convertToLU_InPlace(A, matDim);
+
     // enforce the boundary conditions
-    setupBoundaryConditions(u, finestOneSideNum, h, numLevels-1);
+    setupBoundaryConditions(u[numLevels-1], finestOneSideNum, h);
 
     double norm = 1e9, tolerance = 1e-6;
+    int numThreads = omp_get_max_threads();
+    double *threadNorm = calloc(numThreads, sizeof(double));
 
     // compare against squared tolerance, can avoid
     // unnecessary sqrts that way?
@@ -53,15 +56,38 @@ int main(int argc, char** argv)
     int iterCount = 1;
     double relResidualRatio = -1;
     double oldNorm = -1;
-    while(norm >= cmpNorm)
+
+    #pragma omp parallel
     {
-        oldNorm = norm;
-        norm = vcycle(u, d, numLevels-1, numLevels, gsIterNum, finestOneSideNum, A);
-        relResidualRatio = norm/oldNorm;
-        //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
-        printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
-        iterCount++;
-    }
+        int tid = omp_get_thread_num();
+        while(norm >= cmpNorm)
+        {
+            oldNorm = norm;
+
+            // POTENTIAL FALSE SHARING issue here
+            threadNorm[tid] = vcycle(u, d, r, numLevels-1, numLevels,
+                                     gsIterNum, finestOneSideNum, A);
+
+            // let one thread calculate the actual norm
+            #pragma omp single
+            {
+                int i;
+                norm = 0;
+                for(i = 0; i < numThreads; i++)
+                {
+                    // square and sum it to get the l2-norm
+                    // at the end
+                    norm += threadNorm[i]*threadNorm[i];
+                }
+                norm = sqrt(norm);
+
+                relResidualRatio = norm/oldNorm;
+                //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
+                printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
+                iterCount++;
+            }
+        }
+    } // end of PRAGMA OMP
 
     // smoothen border edge and point values
     // although they are not used in the calculation
@@ -83,8 +109,10 @@ int main(int argc, char** argv)
 
     deAllocGridLevels(&d, numLevels);
     deAllocGridLevels(&u, numLevels);
+    deAllocGridLevels(&r, numLevels);
 
     deAllocTimingInfo(&tInfo, numLevels);
+    free(threadNorm);
     free(A);
 
     return 0;
