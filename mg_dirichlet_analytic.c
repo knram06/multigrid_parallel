@@ -11,7 +11,7 @@
 #include "postprocess.h"
 #include "timing_info.h"
 
-#define GRID_LENGTH (3e-4)
+#define GRID_LENGTH (1.)
 
 TimingInfo **tInfo = NULL;
 int coarseGridNum;
@@ -139,7 +139,7 @@ void constructCoarseMatrixA(double *A, int N)
                 if(k == 0 || k == N-1
                 || j == 0 || j == N-1
                 || i == 0 || i == N-1)
-                    A[mat1DIndex]    = hSq;
+                    A[mat1DIndex]    = 1;
                 else
                 {
                     // i-1,                      i+1
