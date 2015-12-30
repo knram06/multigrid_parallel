@@ -43,7 +43,7 @@ int main(int argc, char** argv)
     // enforce the boundary conditions
     setupBoundaryConditions(u[numLevels-1], finestOneSideNum, h);
 
-    double norm = 1e9, tolerance = 1e-6;
+    double norm = 1e9, tolerance = 1e-8;
     int numThreads = omp_get_max_threads();
     double *threadNorm = calloc(numThreads, sizeof(double));
 
@@ -57,37 +57,37 @@ int main(int argc, char** argv)
     double relResidualRatio = -1;
     double oldNorm = -1;
 
-    #pragma omp parallel
-    {
-        int tid = omp_get_thread_num();
+    //#pragma omp parallel
+    //{
+    //    int tid = omp_get_thread_num();
         while(norm >= cmpNorm)
         {
             oldNorm = norm;
 
             // POTENTIAL FALSE SHARING issue here
-            threadNorm[tid] = vcycle(u, d, r, numLevels-1, numLevels,
-                                     gsIterNum, finestOneSideNum, A);
+            norm = vcycle(u, d, r, numLevels-1, numLevels,
+                          gsIterNum, finestOneSideNum, A);
 
             // let one thread calculate the actual norm
-            #pragma omp single
-            {
-                int i;
-                norm = 0;
-                for(i = 0; i < numThreads; i++)
-                {
-                    // square and sum it to get the l2-norm
-                    // at the end
-                    norm += threadNorm[i]*threadNorm[i];
-                }
-                norm = sqrt(norm);
+            //#pragma omp single
+            //{
+            //    int i;
+            //    norm = 0;
+            //    for(i = 0; i < numThreads; i++)
+            //    {
+            //        // square and sum it to get the l2-norm
+            //        // at the end
+            //        norm += threadNorm[i]*threadNorm[i];
+            //    }
+                //norm = sqrt(norm);
 
                 relResidualRatio = norm/oldNorm;
                 //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
                 printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
                 iterCount++;
-            }
+            //}
         }
-    } // end of PRAGMA OMP
+    //} // end of PRAGMA OMP
 
     // smoothen border edge and point values
     // although they are not used in the calculation
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
     deAllocGridLevels(&r, numLevels);
 
     deAllocTimingInfo(&tInfo, numLevels);
-    free(threadNorm);
+    //free(threadNorm);
     free(A);
 
     return 0;
