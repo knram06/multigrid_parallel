@@ -48,7 +48,6 @@ void resetTimingInfo(TimingInfo **tInfo, const int levels)
 void printTimingInfo(TimingInfo **tInfo, const int levels)
 {
     int l, s;
-    const double cycleTime = 1./CLOCKS_PER_SEC;
 
     const char* stageNames[NUM_STAGES] = {
         "Smoother1", "CalcResidual1", "Restrict Residual", "Recurse, Direct Solve", "Prolongate&Correct", "Smoother2", "CalcResidual2"};
@@ -60,7 +59,7 @@ void printTimingInfo(TimingInfo **tInfo, const int levels)
         printf("%20s %20s %20s\n", "", "numCalls", "timeTaken");
 
         for(s = 0; s < NUM_STAGES; s++)
-            printf("%20.20s %20d %20lf\n", stageNames[s], t[s].numCalls, t[s].timeTaken*cycleTime);
+            printf("%20.20s %20d %20lf\n", stageNames[s], t[s].numCalls, t[s].timeTaken);
     }
 }
 

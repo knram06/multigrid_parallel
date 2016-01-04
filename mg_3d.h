@@ -1139,6 +1139,8 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // Thanks to Rajesh Gandham for pointing this out
     #pragma omp single
     {
+        // we want only thread to do this
+        // else FALSE SHARING issue and redundant memsets
         if(q < (numLevels-1))
             memset(v, 0, N*N*N*sizeof(double));
     }

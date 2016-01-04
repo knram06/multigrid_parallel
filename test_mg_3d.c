@@ -57,6 +57,7 @@ int main(int argc, char** argv)
     double relResidualRatio = -1;
     double oldNorm = -1;
 
+    double clockStart = omp_get_wtime();
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
@@ -89,12 +90,14 @@ int main(int argc, char** argv)
             }
         }
     } // end of PRAGMA OMP
+    double clockEnd = omp_get_wtime();
 
     // smoothen border edge and point values
     // although they are not used in the calculation
     //updateEdgeValues(u[numLevels-1], finestOneSideNum);
 
     printTimingInfo(tInfo, numLevels);
+    printf("Overall time for solving: %10.6g\n", clockEnd-clockStart);
 
     // checking against analytical soln
     double errNorm = 0.;
@@ -118,7 +121,7 @@ int main(int argc, char** argv)
     errNorm = sqrt(errNorm);
     printf("Error norm: %10.6g\n", errNorm);
 
-    writeOutputData("diff2.vtk", v, h, finestOneSideNum);
+    //writeOutputData("diff2.vtk", v, h, finestOneSideNum);
 
     deAllocGridLevels(&d, numLevels);
     deAllocGridLevels(&u, numLevels);
