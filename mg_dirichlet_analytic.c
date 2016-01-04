@@ -1006,8 +1006,6 @@ int main(int argc, char** argv)
 
     printTimingInfo(tInfo, numLevels);
 
-    writeOutputData("output.vtk", u[numLevels-1], spacing, finestOneSideNum);
-
     // checking against analytical soln
     double errNorm = 0.;
     int i, j, k;
@@ -1022,12 +1020,15 @@ int main(int argc, char** argv)
             {
                 const int pos = nni + nj + k;
                 double diff = v[pos] - BCFunc(i*spacing, j*spacing, k*spacing);
+                v[pos] = diff;
                 errNorm += diff*diff;
             }
         }
     }
     errNorm = sqrt(errNorm);
     printf("Error norm: %10.6g\n", errNorm);
+
+    writeOutputData("diff_ref.vtk", v, spacing, finestOneSideNum);
 
     deAllocGridLevels(&d, numLevels);
     deAllocGridLevels(&u, numLevels);

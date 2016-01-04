@@ -96,27 +96,29 @@ int main(int argc, char** argv)
 
     printTimingInfo(tInfo, numLevels);
 
-    writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
-
     // checking against analytical soln
     double errNorm = 0.;
     int i, j, k;
-    for(i = 0; i < N; i++)
+    double *v = u[numLevels-1];
+    for(i = 0; i < finestOneSideNum; i++)
     {
-        int nni = N*N*i;
-        for(j = 0; j < N; j++)
+        int nni = finestOneSideNum*finestOneSideNum*i;
+        for(j = 0; j < finestOneSideNum; j++)
         {
-            int nj = N*j;
-            for(k = 0; k < N; k++)
+            int nj = finestOneSideNum*j;
+            for(k = 0; k < finestOneSideNum; k++)
             {
                 int pos = nni + nj + k;
-                double diff = u[numLevels-1][pos] - BCFunc(i*h, j*h, k*h);
+                double diff = v[pos] - BCFunc(i*h, j*h, k*h);
+                v[pos] = diff;
                 errNorm = diff*diff;
             }
         }
     }
     errNorm = sqrt(errNorm);
-    printf("Error norm: %lf\n", errNorm);
+    printf("Error norm: %10.6g\n", errNorm);
+
+    writeOutputData("diff2.vtk", v, h, finestOneSideNum);
 
     deAllocGridLevels(&d, numLevels);
     deAllocGridLevels(&u, numLevels);
