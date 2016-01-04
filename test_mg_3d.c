@@ -57,37 +57,37 @@ int main(int argc, char** argv)
     double relResidualRatio = -1;
     double oldNorm = -1;
 
-    //#pragma omp parallel
-    //{
-    //    int tid = omp_get_thread_num();
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
         while(norm >= cmpNorm)
         {
             oldNorm = norm;
 
             // POTENTIAL FALSE SHARING issue here
-            norm = vcycle(u, d, r, numLevels-1, numLevels,
-                          gsIterNum, finestOneSideNum, A);
+            threadNorm[tid] = vcycle(u, d, r, numLevels-1, numLevels,
+                                     gsIterNum, finestOneSideNum, A);
 
             // let one thread calculate the actual norm
-            //#pragma omp single
-            //{
-            //    int i;
-            //    norm = 0;
-            //    for(i = 0; i < numThreads; i++)
-            //    {
-            //        // square and sum it to get the l2-norm
-            //        // at the end
-            //        norm += threadNorm[i]*threadNorm[i];
-            //    }
-                //norm = sqrt(norm);
+            #pragma omp single
+            {
+                int i;
+                norm = 0;
+                for(i = 0; i < numThreads; i++)
+                {
+                    // square and sum it to get the l2-norm
+                    // at the end
+                    norm += threadNorm[i]*threadNorm[i];
+                }
+                norm = sqrt(norm);
 
                 relResidualRatio = norm/oldNorm;
                 //norm = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h);
                 printf("%5d    Residual Norm:%20g     ResidRatio:%20g\n", iterCount, norm, relResidualRatio);
                 iterCount++;
-            //}
+            }
         }
-    //} // end of PRAGMA OMP
+    } // end of PRAGMA OMP
 
     // smoothen border edge and point values
     // although they are not used in the calculation
@@ -98,21 +98,30 @@ int main(int argc, char** argv)
     writeOutputData("output.vtk", u[numLevels-1], h, finestOneSideNum);
 
     // checking against analytical soln
-    //double errNorm = 0.;
-    //for(i = 0; i < finestGridNum; i++)
-    //{
-    //    double diff = u[numLevels-1][i] - func(i*h);
-    //    errNorm = diff*diff;
-    //}
-
-    //printf("Error norm: %lf\n", errNorm);
+    double errNorm = 0.;
+    int i, j, k;
+    for(i = 0; i < N; i++)
+    {
+        int nni = N*N*i;
+        for(j = 0; j < N; j++)
+        {
+            int nj = N*j;
+            for(k = 0; k < N; k++)
+            {
+                int pos = nni + nj + k;
+                double diff = u[numLevels-1][pos] - BCFunc(i*h, j*h, k*h);
+                errNorm = diff*diff;
+            }
+        }
+    }
+    printf("Error norm: %lf\n", errNorm);
 
     deAllocGridLevels(&d, numLevels);
     deAllocGridLevels(&u, numLevels);
     deAllocGridLevels(&r, numLevels);
 
     deAllocTimingInfo(&tInfo, numLevels);
-    //free(threadNorm);
+    free(threadNorm);
     free(A);
 
     return 0;

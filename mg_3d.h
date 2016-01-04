@@ -550,23 +550,22 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
-    // PERF: Improve cache locality (?) by doing relevant number of
-    // smoother iterations within one "color"
+    // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)
     {
         /*******RED LOOP**************************/
-        //#pragma omp for schedule(static)
+        #pragma omp for schedule(static)
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
-            int iOffset = (i+1) % 2;
+            //int iOffset = (i+1) % 2;
             for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
                 int pos = nni + nj;
 
-                int jOffset = (j+1) % 2;
-                int kOffset = (1 + (iOffset + jOffset)%2);
+                //int jOffset = (j+1) % 2;
+                int kOffset = (1 + (i + j)%2);
                 // adjust k offset accordingly
                 for(k = kOffset; k < N-1; k+=2)
                 {
@@ -576,26 +575,21 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
                 } // end of k loop
             } // end of j loop
         } // end of i loop
-    }
 
-    // PERF: Improve cache locality (?) by doing relevant number of
-    // smoother iterations within one "color"
-    for(s = 0; s < smootherIter; s++)
-    {
         /*******BLACK LOOP************************/
-        //#pragma omp for schedule(static)
+        #pragma omp for schedule(static)
         for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
-            int iOffset = (i+1) % 2;
+            //int iOffset = (i+1) % 2;
             for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
                 int pos = nni + nj;
 
                 // IMPORTANT: jOffset differs from RED here
-                int jOffset = (j % 2);
-                int kOffset = (1 + (iOffset + jOffset)%2);
+                //int jOffset = (j % 2);
+                int kOffset = (1 + (i+j+1)%2);
                 // adjust k offset accordingly
                 for(k = kOffset; k < N-1; k+=2)
                 {
@@ -613,7 +607,6 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
 
 } // end of preSmoother
 
-// smoother function
 void postSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
 {
     int s;
@@ -625,26 +618,25 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
-    // PERF: Improve cache locality (?) by doing relevant number of
-    // smoother iterations within one "color"
+    // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)
     {
         /*******BLACK LOOP************************/
-        //#pragma omp for schedule(static)
-        for(i = N-2; i >= 1; i--)
+        #pragma omp for schedule(static)
+        for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
-            int iOffset = (i+1) % 2;
-            for(j = N-2; j >= 1; j--)
+            //int iOffset = (i+1) % 2;
+            for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
                 int pos = nni + nj;
 
                 // IMPORTANT: jOffset differs from RED here
-                int jOffset = (j % 2);
-                int kOffset = ((N-2) - (iOffset + jOffset)%2);
+                //int jOffset = (j % 2);
+                int kOffset = (1 + (i+j+1)%2);
                 // adjust k offset accordingly
-                for(k = kOffset; k >= 1; k-=2)
+                for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
                     smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
@@ -652,27 +644,22 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
                 } // end of k loop
             } // end of j loop
         } // end of i loop
-    } // end of smootherIter loop
 
-    // PERF: Improve cache locality (?) by doing relevant number of
-    // smoother iterations within one "color"
-    for(s = 0; s < smootherIter; s++)
-    {
         /*******RED LOOP**************************/
-        //#pragma omp for schedule(static)
-        for(i = N-2; i >= 1; i--)
+        #pragma omp for schedule(static)
+        for(i = 1; i < N-1; i++)
         {
             const int nni = NN*i;
-            int iOffset = (i+1) % 2;
-            for(j = N-2; j >= 1; j--)
+            //int iOffset = (i+1) % 2;
+            for(j = 1; j < N-1; j++)
             {
                 const int nj = N*j;
                 int pos = nni + nj;
 
-                int jOffset = (j+1) % 2;
-                int kOffset = ((N-2) - (iOffset + jOffset)%2);
+                //int jOffset = (j+1) % 2;
+                int kOffset = (1 + (i + j)%2);
                 // adjust k offset accordingly
-                for(k = kOffset; k >= 1; k-=2)
+                for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
                     smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
@@ -680,13 +667,14 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
                 } // end of k loop
             } // end of j loop
         } // end of i loop
-    }
+
+    } // end of smootherIter loop
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
     //updateEdgeValues(v, N);
 
-} // end of preSmoother
+} // end of postSmoother
 
 double calculateResidual(const double* __restrict__ v, const double* __restrict__ d, const int N, const double h, double *res)
 {
@@ -701,7 +689,7 @@ double calculateResidual(const double* __restrict__ v, const double* __restrict_
 
     // adjust for different boundary condition types?
     double ret = 0.;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 1; i < N-1; i++)
     {
         const int nni = NN*i;
@@ -776,7 +764,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
     // X faces
     i = 0;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(j = 0; j < Nc; j++)
     {
         njc = j*Nc;
@@ -788,7 +776,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     i = Nc-1;
     nnic = NCNC*i;
     nnif = NFNF*2*i;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(j = 0; j < Nc; j++)
     {
         njc = j*Nc;
@@ -802,7 +790,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     j = 0;
     njc = j*Nc;
     njf = 2*j*Nf;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -814,7 +802,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     j = Nc-1;
     njc = j*Nc;
     njf = 2*j*Nf;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -826,7 +814,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
     // Z faces
     k = 0;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -840,7 +828,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     }
 
     k = Nc-1;
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 0; i < Nc; i++)
     {
         nnic = NCNC*i;
@@ -855,7 +843,7 @@ void restrictResidual(const double* __restrict__ r, const int Nf, double* __rest
     /**********************************************/
 
     // now do interpolation for inner nodes
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 1; i < Nc-1; i++)
     {
         nnic = NCNC*i;
@@ -900,7 +888,7 @@ void prolongateAndCorrectError(const double* __restrict__ ec, const int Nc, doub
     const int NCNC = Nc*Nc;
     const int NFNF = Nf*Nf;
 
-    //#pragma omp for schedule(static)
+    #pragma omp for schedule(static)
     for(i = 0; i < Nf; i++)
     {
         const int nnif = i*NFNF;
@@ -1149,17 +1137,15 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // i.e. ensured constant number of iterations for desired relative reduction
     // in error
     // Thanks to Rajesh Gandham for pointing this out
-    //#pragma omp single
-    //{
+    #pragma omp single
+    {
         if(q < (numLevels-1))
-        {
             memset(v, 0, N*N*N*sizeof(double));
-        }
-    //}
+    }
 
     if(q == 0)
     {
-        //#pragma omp single
+        #pragma omp single
         {
             const int NN = N*N;
             const int totalNodes = NN*N;
@@ -1174,11 +1160,11 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
         return 0.;
     }
 
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     //GaussSeidelSmoother(v, d, N, h, smootherIter);
     preSmoother(v, d, N, h, smootherIter);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][0].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][0].numCalls++;
@@ -1187,10 +1173,10 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // allocate the residual vector
     //double *r = calloc(N*N*N, sizeof(double));
 
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     calculateResidual(v, d, N, h, r);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][1].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][1].numCalls++;
@@ -1202,20 +1188,20 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // now restrict this onto the next level
     double *d1 = f[q-1];
 
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     restrictResidual(r, N, d1, N_coarse);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][2].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][2].numCalls++;
     }
 
     // do recursive call now
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     vcycle(u, f, res, q-1, numLevels, smootherIter, N_coarse, LU);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][3].numCalls++;
@@ -1223,20 +1209,20 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
 
     // now do prolongation to the fine grid
     double *v1 = u[q-1];
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     prolongateAndCorrectError(v1, N_coarse, v, N);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][4].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][4].numCalls++;
     }
 
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
     //GaussSeidelSmoother(v, d, N, h, smootherIter);
     postSmoother(v, d, N, h, smootherIter);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][5].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][5].numCalls++;
@@ -1245,11 +1231,11 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // TODO: Make this fully parallel too
     // Currently haven't figured out how to effectively
     // calculate l2-norm in parallel
-    //#pragma omp single
+    #pragma omp single
     timingTemp = omp_get_wtime();
 
     double rsd = calculateResidual(v, d, N, h, NULL);
-    //#pragma omp single
+    #pragma omp single
     {
     tInfo[q][6].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][6].numCalls++;
