@@ -990,7 +990,7 @@ int main(int argc, char** argv)
 
     double relResidualRatio = -1;
     double oldNorm = -1;
-    while(norm >= cmpNorm)
+    while(norm > cmpNorm)
     {
         oldNorm = norm;
         norm = vcycle(u, d, numLevels-1, numLevels, gsIterNum, finestOneSideNum, A);

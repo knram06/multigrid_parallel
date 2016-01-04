@@ -131,7 +131,7 @@ int main(int argc, char** argv)
         }
     }
 
-    printf("Error norm: %lf\n", errNorm);
+    printf("Error norm: %lf\n", sqrt(errNorm));
 
     free(d);
     free(u);

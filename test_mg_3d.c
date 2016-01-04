@@ -68,6 +68,7 @@ int main(int argc, char** argv)
             threadNorm[tid] = vcycle(u, d, r, numLevels-1, numLevels,
                                      gsIterNum, finestOneSideNum, A);
 
+            #pragma omp barrier // VERY IMPORTANT!!
             // let one thread calculate the actual norm
             #pragma omp single
             {
@@ -114,6 +115,7 @@ int main(int argc, char** argv)
             }
         }
     }
+    errNorm = sqrt(errNorm);
     printf("Error norm: %lf\n", errNorm);
 
     deAllocGridLevels(&d, numLevels);
