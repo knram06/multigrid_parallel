@@ -1162,11 +1162,11 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
         return 0.;
     }
 
-    #pragma omp single
+    #pragma omp master 
     timingTemp = omp_get_wtime();
     //GaussSeidelSmoother(v, d, N, h, smootherIter);
     preSmoother(v, d, N, h, smootherIter);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][0].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][0].numCalls++;
@@ -1175,10 +1175,10 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // allocate the residual vector
     //double *r = calloc(N*N*N, sizeof(double));
 
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
     calculateResidual(v, d, N, h, r);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][1].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][1].numCalls++;
@@ -1190,20 +1190,20 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // now restrict this onto the next level
     double *d1 = f[q-1];
 
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
     restrictResidual(r, N, d1, N_coarse);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][2].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][2].numCalls++;
     }
 
     // do recursive call now
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
     vcycle(u, f, res, q-1, numLevels, smootherIter, N_coarse, LU);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][3].numCalls++;
@@ -1211,20 +1211,20 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
 
     // now do prolongation to the fine grid
     double *v1 = u[q-1];
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
     prolongateAndCorrectError(v1, N_coarse, v, N);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][4].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][4].numCalls++;
     }
 
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
     //GaussSeidelSmoother(v, d, N, h, smootherIter);
     postSmoother(v, d, N, h, smootherIter);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][5].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][5].numCalls++;
@@ -1233,11 +1233,11 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     // TODO: Make this fully parallel too
     // Currently haven't figured out how to effectively
     // calculate l2-norm in parallel
-    #pragma omp single
+    #pragma omp master
     timingTemp = omp_get_wtime();
 
     double rsd = calculateResidual(v, d, N, h, NULL);
-    #pragma omp single
+    #pragma omp master
     {
     tInfo[q][6].timeTaken += (omp_get_wtime() - timingTemp);
     tInfo[q][6].numCalls++;

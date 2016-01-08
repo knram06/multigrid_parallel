@@ -97,6 +97,7 @@ int main(int argc, char** argv)
     //updateEdgeValues(u[numLevels-1], finestOneSideNum);
 
     printTimingInfo(tInfo, numLevels);
+    printf("Max threads: %d\n", numThreads);
     printf("Overall time for solving: %10.6g\n", clockEnd-clockStart);
 
     // checking against analytical soln
