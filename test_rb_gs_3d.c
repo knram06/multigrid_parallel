@@ -111,7 +111,7 @@ int main(int argc, char** argv)
     // print the timing info
     printf("Number of calls: %d\nTime taken:%lf\n", tInfo.numCalls, tInfo.timeTaken);
 
-    writeOutputData("output.vtk", u, h, finestOneSideNum);
+    //writeOutputData("output.vtk", u, h, finestOneSideNum);
 
     // checking against analytical soln
     double errNorm = 0.;
