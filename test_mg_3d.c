@@ -50,7 +50,7 @@ int main(int argc, char** argv)
 
     double *grid = NULL, *rhs = NULL;
     double h;
-    SolverGetDetails(&grid, &rhs, &h);
+    int finestOneSideNum = SolverGetDetails(&grid, &rhs, &h);
 
     SolverSetupBoundaryConditions();
 
@@ -123,7 +123,7 @@ int main(int argc, char** argv)
             {
                 int pos = nni + nj + k;
                 double diff = grid[pos] - BCFunc(i*h, j*h, k*h);
-                grid[pos] = diff;
+                //grid[pos] = diff;
                 errNorm += diff*diff;
             }
         }
