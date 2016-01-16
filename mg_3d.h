@@ -511,11 +511,8 @@ void enforceDirichlet(double* __restrict__ v, const double* __restrict__ d, cons
     for(j = 0; j < N; j++)
     {
         nj = N*j;
-        double ty = j*spacing-center[0];
         for(k = 0; k < N; k++)
         {
-            double tz = k*spacing-center[1];
-            double rr = ty*ty + tz*tz;
             int pos = nni + nj + k;
             //if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
             v[pos] = d[pos];
@@ -557,7 +554,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
-    enforceDirichlet(v, d, N, center);
+    //enforceDirichlet(v, d, N, center);
     // do pre-smoother first
     // PERF: tile here?
     for(s = 0; s < smootherIter; s++)
@@ -652,7 +649,7 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
     const int NN = N*N;
 
     // enforce Dirichlet first here
-    enforceDirichlet(v, d, N, center);
+    //enforceDirichlet(v, d, N, center);
 
     // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)
@@ -723,7 +720,7 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
     const int NN = N*N;
 
     // enforce Dirichlet first here
-    enforceDirichlet(v, d, N, center);
+    //enforceDirichlet(v, d, N, center);
 
     // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)

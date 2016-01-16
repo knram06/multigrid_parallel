@@ -63,6 +63,9 @@ int main(int argc, char** argv)
     // RELATIVE CONVERGENCE criteria
     const double initResidual = SolverGetInitialResidual();
 
+    // ENFORCE DIRICHLET on X vector
+    setupBoundaryConditions(grid, finestOneSideNum, h);
+
     const double cmpNorm = initResidual*tolerance;
     int iterCount = 1;
     double relResidualRatio = -1;
