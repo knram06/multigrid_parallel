@@ -183,6 +183,7 @@ void constructCoarseMatrixA(double *A, int N, const double h)
                     // adjust for scaling A matrix by hSq
                     A[mat1DIndex] = 1.;
 
+                    /*
                     // need to adjust for corner nodes/edges
                     int selfCount = 0;
 
@@ -247,6 +248,7 @@ void constructCoarseMatrixA(double *A, int N, const double h)
                         A[mat1DIndex] = 1;
                     else
                         A[mat1DIndex] = selfCount;
+                    */
 
                 } // end of if on boundary points
 
@@ -439,6 +441,7 @@ void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
             - hSq*d[p]              // hSq*f
             );
 
+    /*
     // enforce Neumann bc (order?)
     // if on the inner node adjacent to boundary
     // copy to boundary node - this way we ensure
@@ -489,6 +492,7 @@ void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
         v[p-1] = v[p];
     else if(k == N-2)
         v[p+1] = v[p];
+    */
 
 }
 
@@ -573,6 +577,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                           - hSq*d[p]              // hSq*f
                             );
 
+                    /*
                     // enforce Neumann bc (order?)
                     // if on the inner node adjacent to boundary
                     // copy to boundary node - this way we ensure residual
@@ -623,6 +628,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                         v[p-1] = v[p];
                     else if(k == N-2)
                         v[p+1] = v[p];
+                    */
                 } // end of k loop
             } // end of j loop
         } // end of i loop
@@ -699,7 +705,7 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
-    updateEdgeValues(v, N);
+    //updateEdgeValues(v, N);
 
 } // end of preSmoother
 
@@ -771,7 +777,7 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
-    updateEdgeValues(v, N);
+    //updateEdgeValues(v, N);
 
 } // end of postSmoother
 
@@ -1155,7 +1161,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
     }
 
     j = levelN-1;
@@ -1164,7 +1170,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
     }
     /***********************************/
     /***********************************/
@@ -1176,7 +1182,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
         }
 
     }
@@ -1188,7 +1194,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = 0;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
         }
     }
     /***********************************/
@@ -1204,8 +1210,9 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         {
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
-            if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-                v[nni + nj + k] = CAPILLARY_VOLTAGE;
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            //if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+            //    v[nni + nj + k] = CAPILLARY_VOLTAGE;
         }
     }
 
@@ -1220,12 +1227,13 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
 
-            if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-                    &&
-               (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-            {
-                v[nni + nj + k] = EXTRACTOR_VOLTAGE;
-            }
+            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            //if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+            //        &&
+            //   (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            //{
+            //    v[nni + nj + k] = EXTRACTOR_VOLTAGE;
+            //}
         }
     }
     /***********************************/
