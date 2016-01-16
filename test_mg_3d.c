@@ -124,14 +124,14 @@ int main(int argc, char** argv)
                 int pos = nni + nj + k;
                 double diff = grid[pos] - BCFunc(i*h, j*h, k*h);
                 grid[pos] = diff;
-                errNorm = diff*diff;
+                errNorm += diff*diff;
             }
         }
     }
     errNorm = sqrt(errNorm);
     printf("Error norm: %10.6g\n", errNorm);
 
-    //writeOutputData("diff2.vtk", v, h, finestOneSideNum);
+    writeOutputData("diff2.vtk", grid, h, finestOneSideNum);
 
     SolverFinalize();
     free(threadNorm);
