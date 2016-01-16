@@ -10,44 +10,6 @@ int main(int argc, char** argv)
 
     SolverInitialize(argc, argv);
 
-    /*
-    if(argc != 4)
-    {
-        printf("Usage: %s <coarse grid points on one side> <number of levels> <gauss seidel iterations>\n", argv[0]);
-        exit(1);
-    }
-
-    // parse the passed in options
-    int N = atoi(argv[1]);
-    const int numLevels = atoi(argv[2]);
-    const int gsIterNum = atoi(argv[3]);
-
-    // preallocate the arrays using max grid level
-    int multFactor = 1 << (numLevels-1);
-    const int finestOneSideNum = ((N-1) * multFactor)+1;
-
-    //TimingInfo **tInfo = NULL;
-    // allocate the timing object
-    allocTimingInfo(&tInfo, numLevels);
-
-    double **u = NULL, **d = NULL, **r = NULL;
-    allocGridLevels(&u, numLevels, N);
-    allocGridLevels(&d, numLevels, N);
-    allocGridLevels(&r, numLevels, N);
-
-    // fill in the details at the finest level
-    double h = GRID_LENGTH/(finestOneSideNum-1);
-
-    // preallocate and fill the coarse matrix A
-    int matDim = N*N*N;
-    double *A = calloc(matDim*matDim, sizeof(double));
-    constructCoarseMatrixA(A, N, h);
-    convertToLU_InPlace(A, matDim);
-
-    // enforce the boundary conditions
-    setupBoundaryConditions(u[numLevels-1], finestOneSideNum, h);
-    */
-
     double *grid = NULL, *rhs = NULL;
     double h;
     int finestOneSideNum = SolverGetDetails(&grid, &rhs, &h);
@@ -126,7 +88,7 @@ int main(int argc, char** argv)
             {
                 int pos = nni + nj + k;
                 double diff = grid[pos] - BCFunc(i*h, j*h, k*h);
-                //grid[pos] = diff;
+                grid[pos] = diff;
                 errNorm += diff*diff;
             }
         }
