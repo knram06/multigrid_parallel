@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <math.h>
 #include <stdbool.h>
 #include <limits.h>
@@ -516,8 +517,8 @@ void enforceDirichlet(double* __restrict__ v, const double* __restrict__ d, cons
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
             int pos = nni + nj + k;
-            if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-                v[pos] = d[pos];
+            //if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+            v[pos] = d[pos];
         }
     }
 
@@ -532,13 +533,14 @@ void enforceDirichlet(double* __restrict__ v, const double* __restrict__ d, cons
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
             int pos = nni + nj + k;
+            v[pos] = d[pos];
 
-            if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-                    &&
-               (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-            {
-                v[pos] = d[pos];
-            }
+            //if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+            //        &&
+            //   (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            //{
+            //    v[pos] = d[pos];
+            //}
         }
     }
     /***********************************/

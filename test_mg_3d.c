@@ -7,6 +7,10 @@
 
 int main(int argc, char** argv)
 {
+
+    SolverInitialize(argc, argv);
+
+    /*
     if(argc != 4)
     {
         printf("Usage: %s <coarse grid points on one side> <number of levels> <gauss seidel iterations>\n", argv[0]);
@@ -42,6 +46,13 @@ int main(int argc, char** argv)
 
     // enforce the boundary conditions
     setupBoundaryConditions(u[numLevels-1], finestOneSideNum, h);
+    */
+
+    double *grid = NULL, *rhs = NULL;
+    double h;
+    SolverGetDetails(&grid, &rhs, &h);
+
+    SolverSetupBoundaryConditions();
 
     double norm = 1e9, tolerance = 1e-8;
     int numThreads = omp_get_max_threads();
@@ -50,7 +61,7 @@ int main(int argc, char** argv)
     // compare against squared tolerance, can avoid
     // unnecessary sqrts that way?
     // RELATIVE CONVERGENCE criteria
-    const double initResidual = calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, h, NULL);
+    const double initResidual = SolverGetInitialResidual();
 
     const double cmpNorm = initResidual*tolerance;
     int iterCount = 1;
@@ -61,13 +72,12 @@ int main(int argc, char** argv)
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        while(norm >= cmpNorm)
+        while(norm > cmpNorm)
         {
             oldNorm = norm;
 
             // POTENTIAL FALSE SHARING issue here
-            threadNorm[tid] = vcycle(u, d, r, numLevels-1, numLevels,
-                                     gsIterNum, finestOneSideNum, A);
+            threadNorm[tid] = SolverLinSolve();
 
             #pragma omp barrier // VERY IMPORTANT!!
             // let one thread calculate the actual norm
@@ -96,14 +106,13 @@ int main(int argc, char** argv)
     // although they are not used in the calculation
     //updateEdgeValues(u[numLevels-1], finestOneSideNum);
 
-    printTimingInfo(tInfo, numLevels);
+    SolverPrintTimingInfo();
     printf("Max threads: %d\n", numThreads);
     printf("Overall time for solving: %10.6g\n", clockEnd-clockStart);
 
     // checking against analytical soln
     double errNorm = 0.;
     int i, j, k;
-    double *v = u[numLevels-1];
     for(i = 0; i < finestOneSideNum; i++)
     {
         int nni = finestOneSideNum*finestOneSideNum*i;
@@ -113,8 +122,8 @@ int main(int argc, char** argv)
             for(k = 0; k < finestOneSideNum; k++)
             {
                 int pos = nni + nj + k;
-                double diff = v[pos] - BCFunc(i*h, j*h, k*h);
-                v[pos] = diff;
+                double diff = grid[pos] - BCFunc(i*h, j*h, k*h);
+                grid[pos] = diff;
                 errNorm = diff*diff;
             }
         }
@@ -124,13 +133,8 @@ int main(int argc, char** argv)
 
     //writeOutputData("diff2.vtk", v, h, finestOneSideNum);
 
-    deAllocGridLevels(&d, numLevels);
-    deAllocGridLevels(&u, numLevels);
-    deAllocGridLevels(&r, numLevels);
-
-    deAllocTimingInfo(&tInfo, numLevels);
+    SolverFinalize();
     free(threadNorm);
-    free(A);
 
     return 0;
 }
