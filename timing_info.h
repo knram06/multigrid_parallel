@@ -1,51 +1,53 @@
 #ifndef TIMING_INFO_H
 #define TIMING_INFO_H
 
-#define NUM_STAGES 7
-#define NUM_ATTRIBS 2
-
-#include <stdlib.h>
-#include <time.h>
-#include <assert.h>
+#include <string.h>
 
 typedef struct __time_t
 {
-    int numCalls;
-    double timeTaken;
+    int numStages;
+    char **stageNames;
+    int  *numCalls;
+    double *timeTaken;
 } TimingInfo;
 
-void allocTimingInfo(TimingInfo ***tInfo, const int levels)
+void allocTimingInfo(TimingInfo **tInfo, char **stageNames, const int numStages)
 {
-    (*tInfo) = malloc(sizeof(TimingInfo*) * levels);
+    (*tInfo) = malloc(sizeof(TimingInfo));
     assert((*tInfo));
 
+    // set the number of stages
+    (*tInfo)->numStages  = numStages;
+
+    // copy over the stage names
+    // IMPORTANT: free this later!
+    (*tInfo)->stageNames = malloc(sizeof(char*) * numStages);
     int i;
-    for(i = 0; i < levels; i++)
-    {
-        (*tInfo)[i] = malloc(sizeof(TimingInfo) * NUM_STAGES);
-        assert((*tInfo)[i]);
+    for(i = 0; i < numStages; i++)
+        (*tInfo)->stageNames[i] = strdup(stageNames[i]);
 
-        // initialize the object
-        (*tInfo)[i]->numCalls = 0;
-        (*tInfo)[i]->timeTaken = 0.;
-    }
+    // set other attribs - FREE them in dealloc
+    (*tInfo)->numCalls  = calloc(numStages, sizeof(int));
+    (*tInfo)->timeTaken = calloc(numStages, sizeof(double));
 }
 
-void resetTimingInfo(TimingInfo **tInfo, const int levels)
+void resetTimingInfo(TimingInfo *tInfo)
 {
-    int l, s;
-    for(l = 0; l < levels; l++)
-    {
-        TimingInfo *t = tInfo[l];
-        for(s = 0; s < NUM_STAGES; s++)
-        {
-            t[s].numCalls = 0;
-            t[s].timeTaken = 0.;
-        }
-    } // end of levels loop
+    memset(tInfo->numCalls,  0, sizeof(int)*tInfo->numStages);
+    memset(tInfo->timeTaken, 0, sizeof(double)*tInfo->numStages);
 }
 
-void printTimingInfo(TimingInfo **tInfo, const int levels)
+void printTimingInfo(TimingInfo *tInfo)
+{
+    int i;
+    printf("%20s %20s %20s\n", "", "numCalls", "timeTaken");
+
+    for(i = 0; i < tInfo->numStages; i++)
+        printf("%20.20s %20d %20lf\n", tInfo->stageNames[i], tInfo->numCalls[i], tInfo->timeTaken[i]);
+}
+
+/*
+void printTimingInfo(TimingInfo *tInfo)
 {
     int l, s;
 
@@ -62,12 +64,17 @@ void printTimingInfo(TimingInfo **tInfo, const int levels)
             printf("%20.20s %20d %20lf\n", stageNames[s], t[s].numCalls, t[s].timeTaken);
     }
 }
+*/
 
-void deAllocTimingInfo(TimingInfo ***tInfo, const int levels)
+void deAllocTimingInfo(TimingInfo **tInfo)
 {
     int i;
-    for(i = 0; i < levels; i++)
-        free((*tInfo)[i]);
+    for(i = 0; i < (*tInfo)->numStages; i++)
+        free( (*tInfo)->stageNames[i] );
+    free((*tInfo)->stageNames);
+
+    free((*tInfo)->numCalls);
+    free((*tInfo)->timeTaken);
 
     free((*tInfo));
 }

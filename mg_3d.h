@@ -1,3 +1,6 @@
+#ifndef MG_3D_H
+#define MG_3D_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -19,7 +22,7 @@ int numLevels;
 int gsIterNum;
 
 // MG-level data
-double **u, **d;
+double **u, **d, **r;
 double *A; // coarsest level matrix
 double spacing;  // spacing
 
@@ -43,6 +46,45 @@ void allocGridLevels(double ***u, const int numLevels, const int N)
     } // end of loop which sets up levels
 }
 
+// print functions for debugging
+void printGrid3D(const double* grid, const int oneSideN)
+{
+    int i, j, k;
+    const int NN = oneSideN*oneSideN;
+    const int N  = oneSideN;
+
+    for(i = 0; i < N; i++)
+    {
+        printf("LEVEL %d\n", i);
+        const int nni = NN*i;
+
+        for(k=N-1; k >=0; k--)
+        {
+            for(j = 0; j < N; j++)
+            {
+                const int nj = N*j;
+                printf("%10.5g ", grid[nni + nj + k]);
+            }
+            printf("\n");
+        }
+        printf("\n");
+    }
+}
+
+void printMatrix(const double* mat, const int oneSideDim)
+{
+    int i, j;
+
+    for(i = 0; i < oneSideDim; i++)
+    {
+        const int ni = oneSideDim*i;
+        for(j = 0; j < oneSideDim; j++)
+            printf("%10.5lf ", mat[ni + j]);
+
+        printf("\n");
+    }
+}
+
 double BCFunc(double x, double y, double z)
 {return x*x -2*y*y + z*z;}
 //{ return (-cos(x) + x*(cos(1)-1) + 1); }
@@ -61,7 +103,6 @@ double BCFunc(double x, double y, double z)
 bool isPowerOfTwo(int x)
 { return (x & (x-1)) == 0;}
 
-/*
 void SolverInitialize(int argc, char **argv)
 {
     if(argc != 4)
@@ -84,17 +125,22 @@ void SolverInitialize(int argc, char **argv)
     int multFactor = 1 << (numLevels-1);
     finestOneSideNum = ((coarseGridNum-1) * multFactor)+1;
 
-    u = NULL; d = NULL;
+    u = NULL; d = NULL; r = NULL;
     allocGridLevels(&u, numLevels, coarseGridNum);
     allocGridLevels(&d, numLevels, coarseGridNum);
+    allocGridLevels(&r, numLevels, coarseGridNum);
 
     // allocate the timing object
-    allocTimingInfo(&tInfo, numLevels);
+    tInfo = malloc(sizeof(TimingInfo*) * numLevels);
+    const char* stageNames[7] = {
+        "Smoother1", "CalcResidual1", "Restrict Residual", "Recurse, Direct Solve", "Prolongate&Correct", "Smoother2", "CalcResidual2"};
+    int i;
+    for(i = 0; i < numLevels; i++)
+        allocTimingInfo(&(tInfo[i]), stageNames, 7);
 
     // fill in the details at the finest level
     spacing = GRID_LENGTH/(finestOneSideNum-1);
 }
-*/
 
 // assume A has been preallocated
 void constructCoarseMatrixA(double *A, int N, const double h)
@@ -137,7 +183,6 @@ void constructCoarseMatrixA(double *A, int N, const double h)
                     // adjust for scaling A matrix by hSq
                     A[mat1DIndex] = 1.;
 
-                    /*
                     // need to adjust for corner nodes/edges
                     int selfCount = 0;
 
@@ -161,9 +206,9 @@ void constructCoarseMatrixA(double *A, int N, const double h)
                         }
                         else
                         {
-                            if( (rr <= EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS)
+                            if( (rr < EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS)
                                     ||
-                                    (rr >= EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS) )
+                                (rr > EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS) )
                             {
                                 A[mat1DIndex-NN] = -1;
                                 selfCount++;
@@ -203,7 +248,6 @@ void constructCoarseMatrixA(double *A, int N, const double h)
                     else
                         A[mat1DIndex] = selfCount;
 
-                    */
                 } // end of if on boundary points
 
                 // if on interior points
@@ -225,22 +269,25 @@ void constructCoarseMatrixA(double *A, int N, const double h)
     } // end of i loop
 }
 
-/*
-int SolverGetDetails(double **grid, double *h)
+int SolverGetDetails(double **grid, double **rhs, double *h)
 {
     // set the user pointer to finest level
     (*grid) = u[numLevels-1];
+    (*rhs)  = d[numLevels-1];
 
     // preallocate and fill the coarse matrix A
     int matDim = coarseGridNum*coarseGridNum*coarseGridNum;
     A = calloc(matDim*matDim, sizeof(double));
-    constructCoarseMatrixA(A, coarseGridNum, h);
+
+    // calculate the correct coarse level spacing and
+    // use that to construct the matrix
+    double coarseSpacing = (spacing * (1 << (numLevels-1)) );
+    constructCoarseMatrixA(A, coarseGridNum, coarseSpacing);
     convertToLU_InPlace(A, matDim);
 
     *h = spacing;
     return finestOneSideNum;
 }
-*/
 
 void deAllocGridLevels(double ***u, const int numLevels)
 {
@@ -376,11 +423,11 @@ void updateEdgeValues(double* __restrict__ u, const int N)
 
     j = N-1; k = N-1;
     pos = NN*i + N*j + k;
-    u[pos] = (1./3) * (u[pos+1] + u[pos-N] + u[pos-NN]);
+    u[pos] = (1./3) * (u[pos-1] + u[pos-N] + u[pos-NN]);
 }
 
 void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
-                     const int N, const int NN, const double hSq,
+                     const int N, const int NN, const double h, const double hSq,
                      const double multFact, const int p,
                      const int i, const int j, const int k,
                      const double center[2])
@@ -392,59 +439,105 @@ void smoothenAtIndex(double* __restrict__ v, const double* __restrict__ d,
             - hSq*d[p]              // hSq*f
             );
 
-    /*
     // enforce Neumann bc (order?)
     // if on the inner node adjacent to boundary
     // copy to boundary node - this way we ensure
     // RESIDUAL IS ZERO on boundary node
     if(i == 1 || i == N-2)
     {
-    double ty = j*h - center[0];
-    double tz = k*h - center[1];
-    double rr = ty*ty + tz*tz;
+        double ty = j*h - center[0];
+        double tz = k*h - center[1];
+        double rr = ty*ty + tz*tz;
 
-    if(i == 1)
-    {
-    // outside capillary radius
-    if (rr > CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-    {
-    // copy (i,j,k) to (i-1,j,k)
-    v[p-NN] = v[p];
-    }
-    } // end of if i==1
-    // if i==N-2
-    else
-    {
-    // outside annular ring
-    if((rr <= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-    ||
-    (rr >= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-    {
-    // copy (i,j,k) to (i+1,j,k)
-    v[p+NN] = v[p];
-    }
-    } // end of else, i.e. i == N-2
+        if(i == 1)
+        {
+            // outside capillary radius
+            if (rr > CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+            {
+                // copy (i,j,k) to (i-1,j,k)
+                v[p-NN] = v[p];
+            }
+        } // end of if i==1
+        // if i==N-2
+        else
+        {
+            // outside annular ring
+            if((rr < (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+                    ||
+               (rr > (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            {
+                // copy (i,j,k) to (i+1,j,k)
+                v[p+NN] = v[p];
+            }
+        } // end of else, i.e. i == N-2
     } // end of if on X faces
 
     // if on Y-Faces
     if(j == 1)
     {
-    // copy (i,j,k) to (i,j-1,k)
-    v[p-N] = v[p];
+        // copy (i,j,k) to (i,j-1,k)
+        v[p-N] = v[p];
     }
     else if(j == N-2)
     {
-    // (i,j,k) to (i,j+1,k)
-    v[p+N] = v[p];
+        // (i,j,k) to (i,j+1,k)
+        v[p+N] = v[p];
     }
 
     // if on Z-Faces
     if(k == 1)
-    v[p-1] = v[p];
+        v[p-1] = v[p];
     else if(k == N-2)
-    v[p+1] = v[p];
+        v[p+1] = v[p];
 
-*/
+}
+
+void enforceDirichlet(double* __restrict__ v, const double* __restrict__ d, const int N,
+                      const double center[2])
+{
+    int i, j, k;
+    int nni, nj;
+
+    const int NN = N*N;
+    /***********************************/
+    // X = 0 and END faces
+    i = 0;
+    nni = NN*i;
+    for(j = 0; j < N; j++)
+    {
+        nj = N*j;
+        double ty = j*spacing-center[0];
+        for(k = 0; k < N; k++)
+        {
+            double tz = k*spacing-center[1];
+            double rr = ty*ty + tz*tz;
+            int pos = nni + nj + k;
+            if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+                v[pos] = d[pos];
+        }
+    }
+
+    i = N-1;
+    nni = NN*i;
+    for(j = 0; j < N; j++)
+    {
+        nj = N*j;
+        double ty = j*spacing-center[0];
+        for(k = 0; k < N; k++)
+        {
+            double tz = k*spacing-center[1];
+            double rr = ty*ty + tz*tz;
+            int pos = nni + nj + k;
+
+            if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+                    &&
+               (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            {
+                v[pos] = d[pos];
+            }
+        }
+    }
+    /***********************************/
 }
 
 void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, const int N, const double h, const int smootherIter)
@@ -458,6 +551,7 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
+    enforceDirichlet(v, d, N, center);
     // do pre-smoother first
     // PERF: tile here?
     for(s = 0; s < smootherIter; s++)
@@ -479,7 +573,6 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                           - hSq*d[p]              // hSq*f
                             );
 
-                    /*
                     // enforce Neumann bc (order?)
                     // if on the inner node adjacent to boundary
                     // copy to boundary node - this way we ensure residual
@@ -503,9 +596,9 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                         else
                         {
                             // outside annular ring
-                            if(rr <= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS)
+                            if(rr < (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS)
                                     ||
-                               rr >= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS))
+                               rr > (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS))
                             {
                                 // copy (i,j,k) to (i+1,j,k)
                                 v[p+NN] = v[p];
@@ -530,11 +623,11 @@ void GaussSeidelSmoother(double* __restrict__ v, const double* __restrict__ d, c
                         v[p-1] = v[p];
                     else if(k == N-2)
                         v[p+1] = v[p];
-                    */
                 } // end of k loop
             } // end of j loop
         } // end of i loop
     } // end of smootherIter loop
+    updateEdgeValues(v, N);
 
 } // end of GaussSeidelSmoother
 
@@ -550,6 +643,9 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
+    // enforce Dirichlet first here
+    enforceDirichlet(v, d, N, center);
+
     // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)
     {
@@ -570,7 +666,7 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
                 for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
-                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                    smoothenAtIndex(v, d, N, NN, h, hSq, invMultFact, p,
                                     i, j, k, center);
                 } // end of k loop
             } // end of j loop
@@ -594,7 +690,7 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
                 for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
-                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                    smoothenAtIndex(v, d, N, NN, h, hSq, invMultFact, p,
                                     i, j, k, center);
                 } // end of k loop
             } // end of j loop
@@ -603,7 +699,7 @@ void preSmoother(double* __restrict__ v, const double* __restrict__ d, const int
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
-    //updateEdgeValues(v, N);
+    updateEdgeValues(v, N);
 
 } // end of preSmoother
 
@@ -618,6 +714,9 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
     double center[2] = {GRID_LENGTH/2., GRID_LENGTH/2.};
     const int NN = N*N;
 
+    // enforce Dirichlet first here
+    enforceDirichlet(v, d, N, center);
+
     // PERF: Tile here?
     for(s = 0; s < smootherIter; s++)
     {
@@ -639,7 +738,7 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
                 for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
-                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                    smoothenAtIndex(v, d, N, NN, h, hSq, invMultFact, p,
                                     i, j, k, center);
                 } // end of k loop
             } // end of j loop
@@ -662,7 +761,7 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
                 for(k = kOffset; k < N-1; k+=2)
                 {
                     int p = pos+k; // effectively nni+nj+k
-                    smoothenAtIndex(v, d, N, NN, hSq, invMultFact, p,
+                    smoothenAtIndex(v, d, N, NN, h, hSq, invMultFact, p,
                                     i, j, k, center);
                 } // end of k loop
             } // end of j loop
@@ -672,9 +771,20 @@ void postSmoother(double* __restrict__ v, const double* __restrict__ d, const in
 
     // smoothen on the edges to make it consistent with coarse
     // matrix construction
-    //updateEdgeValues(v, N);
+    updateEdgeValues(v, N);
 
 } // end of postSmoother
+
+double GetL2NormOfVector(const double* d, const int n)
+{
+    int i;
+    double ret = 0.;
+
+    for(i = 0; i < n; i++)
+        ret += d[i]*d[i];
+
+    return sqrt(ret);
+} // end of residualEdges
 
 double calculateResidual(const double* __restrict__ v, const double* __restrict__ d, const int N, const double h, double *res)
 {
@@ -1029,7 +1139,6 @@ void prolongateAndCorrectError(const double* __restrict__ ec, const int Nc, doub
     } // end of i loop
 }
 
-// TODO: Improve this to take in a user function pointer?
 void setupBoundaryConditions(double *v, int levelN, double spacing)
 {
     int i, j, k;
@@ -1046,7 +1155,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            v[nni + nj + k] = 0;
     }
 
     j = levelN-1;
@@ -1055,7 +1164,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
     {
         nni = levelN*levelN*i;
         for(k = 0; k < levelN; k++)
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            v[nni + nj + k] = 0;
     }
     /***********************************/
     /***********************************/
@@ -1067,7 +1176,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            v[nni + nj + k] = 0;
         }
 
     }
@@ -1079,7 +1188,7 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         for(j = 0; j < levelN; j++)
         {
             nj = levelN*j;
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            v[nni + nj + k] = 0;
         }
     }
     /***********************************/
@@ -1095,8 +1204,8 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
         {
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
-            //if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
+            if(rr <= CAPILLARY_RADIUS*CAPILLARY_RADIUS)
+                v[nni + nj + k] = CAPILLARY_VOLTAGE;
         }
     }
 
@@ -1111,22 +1220,20 @@ void setupBoundaryConditions(double *v, int levelN, double spacing)
             double tz = k*spacing-center[1];
             double rr = ty*ty + tz*tz;
 
-            //if((rr > (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
-            //        &&
-            //   (rr < (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
-            //{
-            v[nni + nj + k] = BCFunc(i*spacing, j*spacing, k*spacing);
-            //}
+            if((rr >= (EXTRACTOR_INNER_RADIUS*EXTRACTOR_INNER_RADIUS))
+                    &&
+               (rr <= (EXTRACTOR_OUTER_RADIUS*EXTRACTOR_OUTER_RADIUS)) )
+            {
+                v[nni + nj + k] = EXTRACTOR_VOLTAGE;
+            }
         }
     }
     /***********************************/
 } // end of setupBoundaryConditions
 
 // return current l2-norm squared of residual
-double vcycle(double **u, double **f, double **res, int q, const int numLevels, const int smootherIter, int N, double *LU)
+double vcycle(double **u, double **f, double **res, double h, int q, const int numLevels, const int smootherIter, int N, double *LU)
 {
-    double h = GRID_LENGTH/(N-1);
-
     double *v = u[q];
     double *d = f[q];
     double *r = res[q];
@@ -1153,9 +1260,9 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
             const int totalNodes = NN*N;
 
             timingTemp = omp_get_wtime();
-            solveWithLU(LU, totalNodes, f[q], u[q]);
-            tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
-            tInfo[q][3].numCalls++;
+            solveWithLU(LU, totalNodes, d, v);
+            tInfo[q]->timeTaken[3] += (omp_get_wtime() - timingTemp);
+            tInfo[q]->numCalls[3]++;
         }
 
         // THIS MUST be encountered by all threads
@@ -1168,8 +1275,8 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     preSmoother(v, d, N, h, smootherIter);
     #pragma omp master
     {
-    tInfo[q][0].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][0].numCalls++;
+    tInfo[q]->timeTaken[0] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[0]++;
     }
 
     // allocate the residual vector
@@ -1180,12 +1287,13 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     calculateResidual(v, d, N, h, r);
     #pragma omp master
     {
-    tInfo[q][1].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][1].numCalls++;
+    tInfo[q]->timeTaken[1] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[1]++;
     }
 
     // update N for next coarser level
     int N_coarse = (N+1)/2;
+    double h_coarse = 2*h;
 
     // now restrict this onto the next level
     double *d1 = f[q-1];
@@ -1195,18 +1303,18 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     restrictResidual(r, N, d1, N_coarse);
     #pragma omp master
     {
-    tInfo[q][2].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][2].numCalls++;
+    tInfo[q]->timeTaken[2] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[2]++;
     }
 
     // do recursive call now
     #pragma omp master
     timingTemp = omp_get_wtime();
-    vcycle(u, f, res, q-1, numLevels, smootherIter, N_coarse, LU);
+    vcycle(u, f, res, h_coarse, q-1, numLevels, smootherIter, N_coarse, LU);
     #pragma omp master
     {
-    tInfo[q][3].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][3].numCalls++;
+    tInfo[q]->timeTaken[3] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[3]++;
     }
 
     // now do prolongation to the fine grid
@@ -1216,8 +1324,8 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     prolongateAndCorrectError(v1, N_coarse, v, N);
     #pragma omp master
     {
-    tInfo[q][4].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][4].numCalls++;
+    tInfo[q]->timeTaken[4] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[4]++;
     }
 
     #pragma omp master
@@ -1226,8 +1334,8 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     postSmoother(v, d, N, h, smootherIter);
     #pragma omp master
     {
-    tInfo[q][5].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][5].numCalls++;
+    tInfo[q]->timeTaken[5] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[5]++;
     }
 
     // TODO: Make this fully parallel too
@@ -1239,8 +1347,8 @@ double vcycle(double **u, double **f, double **res, int q, const int numLevels, 
     double rsd = calculateResidual(v, d, N, h, NULL);
     #pragma omp master
     {
-    tInfo[q][6].timeTaken += (omp_get_wtime() - timingTemp);
-    tInfo[q][6].numCalls++;
+    tInfo[q]->timeTaken[6] += (omp_get_wtime() - timingTemp);
+    tInfo[q]->numCalls[6]++;
     }
 
     return rsd;
@@ -1294,13 +1402,13 @@ void SolverFMGInitialize()
  * And areas for parallelism
  */
 
-/*
 void SolverSetupBoundaryConditions()
-{ return setupBoundaryConditions(u[numLevels-1], finestOneSideNum, spacing); }
+{ return setupBoundaryConditions(d[numLevels-1], finestOneSideNum, spacing); }
 
 double SolverLinSolve()
 {
-    double res = vcycle(u, d, numLevels-1, numLevels, gsIterNum, finestOneSideNum, A);
+    // TODO: OMP this
+    double res = vcycle(u, d, r, spacing, numLevels-1, numLevels, gsIterNum, finestOneSideNum, A);
     return res;
 }
 
@@ -1312,12 +1420,44 @@ double SolverGetResidual()
     return calculateResidual(u[numLevels-1], d[numLevels-1], finestOneSideNum, spacing, NULL);
 }
 
+double SolverGetInitialResidual()
+{
+    return GetL2NormOfVector(d[numLevels-1], finestOneSideNum*finestOneSideNum*finestOneSideNum);
+}
+
 void SolverResetTimingInfo()
-{ resetTimingInfo(tInfo, numLevels); }
+{
+    int i;
+    for(i = 0; i < numLevels; i++)
+        resetTimingInfo( tInfo[i] );
+}
 
 void SolverPrintTimingInfo()
-{ printTimingInfo(tInfo, numLevels); }
-*/
+{
+    int i;
+    for(i = 0; i < numLevels; i++)
+    {
+        printf("LEVEL %d\n", i);
+        printTimingInfo( tInfo[i] );
+    }
+}
+
+void SolverFinalize()
+{
+    int i;
+    for(i = 0; i < numLevels; i++)
+        deAllocTimingInfo( &(tInfo[i]) );
+    free(tInfo);
+
+    // free the coarse matrix constructed
+    free(A);
+
+    // deallocate the other multigrid arrays
+    deAllocGridLevels(&u, numLevels);
+    deAllocGridLevels(&d, numLevels);
+    deAllocGridLevels(&r, numLevels);
+
+}
 
 /*
 int main(int argc, char** argv)
@@ -1400,4 +1540,4 @@ int main(int argc, char** argv)
     return 0;
 }
 */
-
+#endif
