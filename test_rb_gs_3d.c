@@ -126,7 +126,7 @@ int main(int argc, char** argv)
             {
                 int pos = nni + nj + k;
                 double diff = u[pos] - BCFunc(i*h, j*h, k*h);
-                errNorm = diff*diff;
+                errNorm += diff*diff;
             }
         }
     }
