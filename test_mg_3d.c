@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     #pragma omp parallel
     {
         int tid = omp_get_thread_num();
-        while(norm >= cmpNorm)
+        while(norm > cmpNorm)
         {
             oldNorm = norm;
 
